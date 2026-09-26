@@ -49,14 +49,20 @@ If you're on Windows and plain `python`/`python3` resolve to the Microsoft Store
 
 ## Installation
 
-Clone this repo directly into a `.claude/skills/` directory. Either:
+**As a plugin (recommended):**
+```bash
+claude plugin marketplace add murad-geoAi/map-digitizer-skill
+claude plugin install digitize-firm-map@map-digitizer-skill
+```
 
-**Per-project** (only available in that project):
+**Manually**, by cloning straight into a `.claude/skills/` directory instead:
+
+Per-project (only available in that project):
 ```bash
 git clone https://github.com/murad-geoAi/map-digitizer-skill.git .claude/skills/digitize-firm-map
 ```
 
-**For your whole account** (available in every project):
+For your whole account (available in every project):
 ```bash
 git clone https://github.com/murad-geoAi/map-digitizer-skill.git ~/.claude/skills/digitize-firm-map
 ```

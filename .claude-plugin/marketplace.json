@@ -1,0 +1,17 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "map-digitizer-skill",
+  "description": "Digitize scanned historic FEMA FIRM flood map panels into GIS deliverables",
+  "owner": {
+    "name": "murad-geoAi",
+    "url": "https://github.com/murad-geoAi"
+  },
+  "plugins": [
+    {
+      "name": "digitize-firm-map",
+      "source": ".",
+      "description": "Turn scanned historic FIRM panels into a georeferenced GeoTIFF + GeoPackage with a local review UI - no QGIS required.",
+      "version": "1.0.0"
+    }
+  ]
+}

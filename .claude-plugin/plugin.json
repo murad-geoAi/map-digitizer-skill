@@ -1,0 +1,15 @@
+{
+  "$schema": "https://code.claude.com/schemas/plugin.json",
+  "name": "digitize-firm-map",
+  "displayName": "Digitize FIRM Map",
+  "version": "1.0.0",
+  "description": "Turns scanned historic FEMA Flood Insurance Rate Map (FIRM) panels into a georeferenced GeoTIFF and GeoPackage (flood zones, BFE lines), with a local browser review UI - no QGIS required.",
+  "author": {
+    "name": "murad-geoAi",
+    "url": "https://github.com/murad-geoAi"
+  },
+  "homepage": "https://github.com/murad-geoAi/map-digitizer-skill",
+  "repository": "https://github.com/murad-geoAi/map-digitizer-skill",
+  "license": "MIT",
+  "keywords": ["gis", "flood", "firm", "fema", "georeferencing", "geospatial", "geopackage"]
+}
