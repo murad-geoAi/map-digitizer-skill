@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>FIRM Panel Review</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="sidebar">
+    <h1 id="panel-title">FIRM Panel Review</h1>
+
+    <div class="section">
+      <h2>How to use this</h2>
+      <ul class="help">
+        <li>Drag a red <b>GCP</b> marker if it's placed at the wrong real-world location.</li>
+        <li>Click a green zone polygon or blue BFE line to edit its label, or drag its vertices to reshape it.</li>
+        <li>Use the draw toolbar (top-left of the map) to add a missing GCP / zone / BFE line, or to delete one.</li>
+        <li>Click <b>Save &amp; Rebuild</b> when done - this refits the georeferencing, rewrites the GeoTIFF, and rebuilds the GeoPackage.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>GCP residuals</h2>
+      <p class="help">Large / flagged residuals usually mean a misread street name or bad geocode match, not real map distortion - check that point first.</p>
+      <table id="residuals-table">
+        <thead><tr><th>Point</th><th>Residual (m, approx)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <button id="save-btn">Save &amp; Rebuild</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="map.js"></script>
+</body>
+</html>

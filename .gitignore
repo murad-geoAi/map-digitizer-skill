@@ -1,0 +1,17 @@
+# Per-panel pipeline scratch/intermediate state (cropped rasters, GCP JSON,
+# transforms, previews) - not the deliverable. Keep only the final GeoTIFF /
+# GeoPackage you copy out of work/<panel>/ once a panel is reviewed and confirmed.
+work/
+output/
+
+__pycache__/
+*.pyc
+
+# Sample/test scanned map panels - large binary scans that don't belong in
+# the skill's own repo. Bring your own scans (e.g. from FEMA's Map Service
+# Center) to try the skill out.
+22071C_HISTORIC_FIRM_PANEL_1790449752478/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db

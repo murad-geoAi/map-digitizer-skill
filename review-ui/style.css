@@ -1,0 +1,117 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+body {
+  display: flex;
+}
+
+#sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  padding: 16px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  border-right: 1px solid #ddd;
+  background: #fafafa;
+}
+
+#map {
+  flex: 1;
+  height: 100vh;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 12px 0;
+}
+
+h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+  margin: 0 0 6px 0;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.help {
+  font-size: 12px;
+  color: #444;
+  line-height: 1.5;
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+table#residuals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+table#residuals-table th, table#residuals-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+table#residuals-table tr.likely-bad td {
+  color: #b00020;
+  font-weight: 600;
+}
+
+#save-btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: #2266cc;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#save-btn:hover {
+  background: #1a52a3;
+}
+
+#save-btn:disabled {
+  background: #999;
+  cursor: default;
+}
+
+#status {
+  margin-top: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+#status.error {
+  color: #b00020;
+}
+
+#status.ok {
+  color: #1a7a2e;
+}
+
+.popup-form label {
+  display: block;
+  font-size: 11px;
+  color: #555;
+  margin-top: 6px;
+}
+
+.popup-form input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  padding: 3px 5px;
+}
