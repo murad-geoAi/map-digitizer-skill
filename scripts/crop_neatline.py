@@ -47,7 +47,14 @@ def load_grayscale(path):
 def find_outer_box(gray, dark_thresh=200, min_ink_fraction=0.002):
     """Bounding box of all 'ink' (anything darker than dark_thresh), i.e. the
     full printed extent of the page including neatline, map content, and
-    sidebar. Falls back to the whole image if nothing qualifies."""
+    sidebar. Falls back to the whole image if nothing qualifies.
+
+    dark_thresh=200: these scans are white/cream paper (near 255) with black
+    ink - 200 sits well below typical paper-grain/scan-noise brightness while
+    still catching faded print. min_ink_fraction=0.002: a row/column counts as
+    part of the printed page if at least ~0.2% of it is ink - enough to catch
+    a thin neatline rule, low enough to ignore stray scan speckle.
+    """
     dark = gray < dark_thresh
     cols_ink = dark.mean(axis=0)
     rows_ink = dark.mean(axis=1)
@@ -66,14 +73,31 @@ def find_vertical_divider(gray, outer_box, search_frac=(0.55, 0.95), line_thresh
     """Look for a strong vertical rule in the right portion of the outer box,
     which typically separates the map area from the legend/title sidebar.
 
-    Returns the divider's x coordinate (absolute, in full-image pixels), or
-    None if nothing convincing is found.
+    Returns (divider_x, best_frac): divider_x is the divider's x coordinate
+    (absolute, in full-image pixels), or None if nothing reached line_thresh;
+    best_frac is the strongest column's dark-fraction score regardless, so a
+    near-miss (e.g. a real divider that only reached 0.59 against a busy/dark
+    map background) is visible in crop_meta.json instead of silently
+    indistinguishable from "no divider-like column existed at all".
+
+    search_frac=(0.55, 0.95): the sidebar is a title-block/legend, always the
+    narrower right portion of these panels in every sample layout seen so far
+    - search doesn't start until well past the map's own centerline so a
+    normal street-grid line can't be mistaken for it. line_thresh=0.6: the
+    divider is a solid rule spanning the full page height, so a genuine one
+    lights up almost the whole column; dark_thresh=150 is stricter than
+    find_outer_box's 200 because this is a same-column-vs-rest-of-column
+    comparison, not a page-vs-blank-margin one, so a lower bar for "ink" here
+    would let heavily inked/shaded map backgrounds (see 2252030019C) trip it.
+    These are tuned CV heuristics, not guaranteed to generalize - that's why
+    SKILL.md has Claude visually check preview.png and re-crop with --override
+    when the sidebar box is missing or wrong, rather than trusting this blind.
     """
     x0, y0, x1, y1 = outer_box
     width = x1 - x0
     height = y1 - y0
     if width <= 0 or height <= 0:
-        return None
+        return None, 0.0
 
     search_x0 = x0 + int(width * search_frac[0])
     search_x1 = x0 + int(width * search_frac[1])
@@ -82,14 +106,15 @@ def find_vertical_divider(gray, outer_box, search_frac=(0.55, 0.95), line_thresh
 
     # fraction of the box height that is 'dark' for each column in the search band
     col_dark_frac = dark.mean(axis=0)
+    best_frac = float(col_dark_frac.max()) if col_dark_frac.size else 0.0
     candidates = np.where(col_dark_frac > line_thresh)[0]
     if len(candidates) == 0:
-        return None
+        return None, best_frac
 
     # take the leftmost strong candidate (the actual divider rule), not the
     # outer-neatline's own right edge which would show up near the far right
     divider_local_x = int(candidates[0])
-    return search_x0 + divider_local_x
+    return search_x0 + divider_local_x, best_frac
 
 
 def main():
@@ -98,7 +123,7 @@ def main():
     parser.add_argument("output_dir")
     parser.add_argument(
         "--override",
-        help="Explicit map_box as x0,y0,x1,y1 in full-image pixel coords, skips detection",
+        help="Explicit map_box as x0,y0,x1,y1 in PREVIEW pixel coords (read off preview.png), skips detection",
     )
     args = parser.parse_args()
 
@@ -109,17 +134,31 @@ def main():
     h, w = gray.shape
     preview_max_dim = 1600
     scale = min(1.0, preview_max_dim / max(h, w))
+    preview_w, preview_h = w * scale, h * scale
 
     outer_box = find_outer_box(gray)
+    divider_best_frac = None
 
     if args.override:
         # coordinates come in PREVIEW pixel space - scale up to full resolution
         px0, py0, px1, py1 = (int(v) for v in args.override.split(","))
+        if px1 <= px0 or py1 <= py0:
+            print(json.dumps({
+                "error": f"--override x0,y0,x1,y1 must have x1>x0 and y1>y0, got {args.override}"
+            }))
+            sys.exit(1)
+        if px0 < 0 or py0 < 0 or px1 > preview_w or py1 > preview_h:
+            print(json.dumps({
+                "error": f"--override {args.override} falls outside preview.png's own "
+                f"{preview_w:.0f}x{preview_h:.0f} pixel space - read the corners off preview.png, not "
+                "the full-resolution source image"
+            }))
+            sys.exit(1)
         map_box = (int(px0 / scale), int(py0 / scale), int(px1 / scale), int(py1 / scale))
         sidebar_box = None
         divider_x = None
     else:
-        divider_x = find_vertical_divider(gray, outer_box)
+        divider_x, divider_best_frac = find_vertical_divider(gray, outer_box)
         if divider_x is not None:
             map_box = (outer_box[0], outer_box[1], divider_x, outer_box[3])
             sidebar_box = (divider_x, outer_box[1], outer_box[2], outer_box[3])
@@ -129,6 +168,12 @@ def main():
 
     # full-resolution crop of just the map area
     cropped = gray[map_box[1] : map_box[3], map_box[0] : map_box[2]]
+    if cropped.size == 0:
+        print(json.dumps({
+            "error": f"map_box {map_box} produces an empty crop (0 width or height) - "
+            "check the --override coordinates or source image"
+        }))
+        sys.exit(1)
     Image.fromarray(cropped).save(out_dir / "cropped.png")
 
     # downsized annotated preview of the WHOLE page for a quick human/Claude sanity check
@@ -155,6 +200,7 @@ def main():
         "map_box": list(map_box),
         "sidebar_box": list(sidebar_box) if sidebar_box else None,
         "divider_x": divider_x,
+        "divider_best_frac": divider_best_frac,
         "used_override": bool(args.override),
     }
     save_json(out_dir / "crop_meta.json", meta)

@@ -86,6 +86,10 @@ def geocode_one(description):
         try:
             d_lat = abs(float(results[0]["lat"]) - float(results[1]["lat"]))
             d_lon = abs(float(results[0]["lon"]) - float(results[1]["lon"]))
+            # ~0.01 degree is roughly 1km at these latitudes - a plausible
+            # street-level ambiguity (same name, different neighborhood) is
+            # usually much farther apart than that, while two legitimate
+            # matches for the same real intersection are usually much closer
             if d_lat > 0.01 or d_lon > 0.01:
                 confidence = "low"
         except (KeyError, ValueError):
@@ -114,7 +118,10 @@ def main():
         entry = dict(cand)
         try:
             entry.update(geocode_one(cand["description"]))
-        except requests.RequestException as e:
+        except Exception as e:  # noqa: BLE001 - one bad response (network hiccup,
+            # rate-limit page returned as 200, unexpected JSON shape) must not
+            # discard every already-geocoded point in this batch; record it as
+            # a failure for this point only and keep going
             entry.update({"confidence": "failed", "error": str(e)})
         results.append(entry)
 

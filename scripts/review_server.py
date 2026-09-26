@@ -41,6 +41,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent))
 from firm_common import (
     apply_transform,
+    clean_polygon_ring,
     fit_affine,
     flag_bad_residuals,
     load_json,
@@ -142,22 +143,48 @@ def api_save():
         zones_geo_in = body.get("zones", empty_fc())
         bfe_geo_in = body.get("bfe", empty_fc())
 
+        # Validate everything BEFORE writing anything. Writing gcps.json/
+        # zones_pixel.geojson partway through and only then discovering a
+        # problem (too few GCPs, an unfixable zone ring) would leave the work
+        # dir inconsistent - e.g. gcps.json reflecting the rejected edit while
+        # transform.json/zones.geojson/the .gpkg still reflect the old one.
+        usable = [g for g in gcps if g.get("confidence") != "failed" and "lon" in g and "lat" in g]
+        if len(usable) < 3:
+            return jsonify({"error": f"Need >= 3 usable GCPs, have {len(usable)}. Nothing was saved."}), 400
+
         # the transform in effect BEFORE this save, used to convert any
         # user-reshaped vector geometry (sent back in lon/lat) into our
         # pixel-space source of truth
         prev_report = load_json(wp("transform.json"))
         prev_transform = prev_report.get("transform", prev_report)
 
-        save_json(wp("gcps.json"), gcps)
-
         zones_pixel = pixel_from_geo_feature_collection(zones_geo_in, prev_transform)
         bfe_pixel = pixel_from_geo_feature_collection(bfe_geo_in, prev_transform)
+
+        # repair/reject bad zone rings (e.g. a self-intersecting edit from the
+        # draw toolbar) the same way vectorize_zones.py does for a fresh
+        # trace - otherwise an invalid polygon goes straight into the final
+        # .gpkg with no warning, or gets misreported later as a "can't fit
+        # georeferencing" error when the transform fit was never the problem
+        warnings = []
+        for feat in zones_pixel["features"]:
+            coords, was_auto_fixed = clean_polygon_ring(feat["geometry"]["coordinates"][0])
+            if coords is None:
+                zid = feat["properties"].get("id", "?")
+                return jsonify({
+                    "error": f"Zone polygon '{zid}' is degenerate (too few distinct points) - "
+                    "reshape or delete it and try again. Nothing was saved."
+                }), 400
+            feat["geometry"]["coordinates"] = coords
+            if was_auto_fixed:
+                warnings.append(
+                    f"Zone '{feat['properties'].get('id', '?')}' self-intersected - "
+                    "kept only its larger lobe. Check it in the review map."
+                )
+
+        save_json(wp("gcps.json"), gcps)
         save_json(wp("zones_pixel.geojson"), zones_pixel)
         save_json(wp("bfe_pixel.geojson"), bfe_pixel)
-
-        usable = [g for g in gcps if g.get("confidence") != "failed" and "lon" in g and "lat" in g]
-        if len(usable) < 3:
-            return jsonify({"error": f"Need >= 3 usable GCPs, have {len(usable)}"}), 400
 
         new_transform, residuals = fit_affine(usable)
         flag_bad_residuals(residuals)
@@ -171,7 +198,10 @@ def api_save():
         _rewrite_geotiff(new_transform)
         _rebuild_geopackage()
 
-        return jsonify(current_state())
+        result = current_state()
+        if warnings:
+            result["warnings"] = warnings
+        return jsonify(result)
 
     except ValueError as e:
         # e.g. fit_affine's degenerate-GCPs check - two GCPs dragged onto (or

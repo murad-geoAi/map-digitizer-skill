@@ -281,7 +281,11 @@ async function save() {
       setStatus(`Error: ${data.error || resp.statusText}`, "error");
       return;
     }
-    setStatus("Saved. GeoTIFF and GeoPackage rebuilt.", "ok");
+    const warningText = (data.warnings || []).join("\n");
+    setStatus(
+      warningText ? `Saved, but check this:\n${warningText}` : "Saved. GeoTIFF and GeoPackage rebuilt.",
+      warningText ? "error" : "ok"
+    );
     await loadState();
   } catch (err) {
     setStatus(`Error: ${err}`, "error");

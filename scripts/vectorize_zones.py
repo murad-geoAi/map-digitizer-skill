@@ -39,31 +39,15 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
-from shapely.geometry import Polygon
-from shapely.validation import make_valid
 
 sys.path.insert(0, str(Path(__file__).parent))
-from firm_common import load_json, reproject_feature_collection, save_json, snap_to_ridge
-
-
-def clean_polygon(points):
-    """Close the ring, fix self-intersections, return exterior coords or None."""
-    ring = list(points)
-    if ring[0] != ring[-1]:
-        ring.append(ring[0])
-    if len(ring) < 4:
-        return None
-    poly = Polygon(ring)
-    if not poly.is_valid:
-        poly = make_valid(poly)
-    if poly.is_empty:
-        return None
-    # make_valid can return a GeometryCollection/MultiPolygon on bad input - take the largest polygon part
-    if poly.geom_type == "MultiPolygon":
-        poly = max(poly.geoms, key=lambda g: g.area)
-    elif poly.geom_type != "Polygon":
-        return None
-    return [list(map(list, poly.exterior.coords))]
+from firm_common import (
+    clean_polygon_ring,
+    load_json,
+    reproject_feature_collection,
+    save_json,
+    snap_to_ridge,
+)
 
 
 def main():
@@ -72,6 +56,10 @@ def main():
     parser.add_argument("zone_polygons_json")
     parser.add_argument("transform_json")
     parser.add_argument("output_dir")
+    # 6px covers typical hand-trace jitter on these scans (a few px at the
+    # resolutions this pipeline works at) without reaching far enough to jump
+    # onto an adjacent parallel line (e.g. the street grid running next to a
+    # zone boundary) - override if a panel's lines run closer together than that
     parser.add_argument("--snap-radius", type=int, default=6)
     args = parser.parse_args()
 
@@ -85,16 +73,19 @@ def main():
 
     pixel_fc = {"type": "FeatureCollection", "features": []}
     skipped = []
+    auto_fixed = []
     for zone in zones:
         pts = zone.get("points", [])
         if len(pts) < 3:
             skipped.append(zone.get("id"))
             continue
         snapped = [list(snap_to_ridge(gray, int(x), int(y), args.snap_radius)) for x, y in pts]
-        coords = clean_polygon(snapped)
+        coords, was_auto_fixed = clean_polygon_ring(snapped)
         if coords is None:
             skipped.append(zone.get("id"))
             continue
+        if was_auto_fixed:
+            auto_fixed.append(zone.get("id"))
         pixel_fc["features"].append(
             {
                 "type": "Feature",
@@ -127,6 +118,10 @@ def main():
         "n_zones_in": len(zones),
         "n_polygons_out": len(pixel_fc["features"]),
         "skipped_ids": skipped,
+        # these self-intersected and shapely kept only the larger lobe - the
+        # traced shape was likely wrong, not just imprecise; re-look at these
+        # in zones_preview.png and retrace if the kept lobe isn't the whole zone
+        "auto_fixed_ids": auto_fixed,
         "zones_pixel_geojson": str((out_dir / "zones_pixel.geojson").resolve()),
         "zones_geojson": str((out_dir / "zones.geojson").resolve()),
         "preview": str((out_dir / "zones_preview.png").resolve()),

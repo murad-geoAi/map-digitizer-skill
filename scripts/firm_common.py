@@ -238,6 +238,49 @@ def remove_file_if_exists(path):
         ) from e
 
 
+def clean_polygon_ring(points):
+    """Close a hand-traced (or user-edited) ring and repair self-intersections.
+
+    Returns (exterior_coords, was_auto_fixed):
+      - exterior_coords is None if the ring can't be turned into a polygon at
+        all (fewer than 3 distinct points after closing).
+      - was_auto_fixed is True when the input ring was invalid (almost always
+        a self-intersecting trace/edit) and shapely's make_valid kept only the
+        largest polygon lobe of it - callers should surface this to the user
+        rather than accepting it silently, since it means part of the traced
+        or drawn area was discarded.
+
+    Shared by vectorize_zones.py (cleaning up a fresh hand-trace) and
+    review_server.py (cleaning up a polygon reshaped/added in the review UI) -
+    both need the exact same repair so a zone polygon can't end up validated
+    in one path and silently corrupt in the other.
+    """
+    # imported here, not at module level, so firm_common stays importable (and
+    # env_check.py's REQUIRED_PACKAGES probe stays accurate) even when shapely
+    # isn't installed yet
+    from shapely.geometry import Polygon
+    from shapely.validation import make_valid
+
+    ring = list(points)
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    if len(ring) < 4:
+        return None, False
+
+    poly = Polygon(ring)
+    was_auto_fixed = not poly.is_valid
+    if was_auto_fixed:
+        poly = make_valid(poly)
+    if poly.is_empty:
+        return None, False
+    # make_valid can return a GeometryCollection/MultiPolygon on bad input - take the largest polygon part
+    if poly.geom_type == "MultiPolygon":
+        poly = max(poly.geoms, key=lambda g: g.area)
+    elif poly.geom_type != "Polygon":
+        return None, False
+    return [list(map(list, poly.exterior.coords))], was_auto_fixed
+
+
 def snap_to_ridge(gray, x, y, radius):
     """Snap a hand-traced pixel to the darkest (most ink-like) pixel within
     `radius` of it. Used to clean up Claude's visually-estimated trace points

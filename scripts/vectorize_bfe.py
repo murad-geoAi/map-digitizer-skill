@@ -43,6 +43,7 @@ def main():
     parser.add_argument("bfe_lines_json")
     parser.add_argument("transform_json")
     parser.add_argument("output_dir")
+    # see vectorize_zones.py's --snap-radius comment - same reasoning applies here
     parser.add_argument("--snap-radius", type=int, default=6)
     args = parser.parse_args()
 
